@@ -14,20 +14,8 @@ while ! nc -z kafka 29092; do
 done
 echo "✅ Kafka is up!"
 
-echo "🔁 Waiting for Spark master on spark-master:7077..."
-elapsed=0
-while ! nc -z spark-master 7077; do
-  sleep 2
-  elapsed=$((elapsed + 2))
-  if [ $elapsed -ge $timeout ]; then
-    echo "❌ Timeout waiting for Spark"
-    exit 1
-  fi
-done
-echo "✅ Spark master is up!"
-
-# Wait a bit more for services to be fully ready
-sleep 10
+# Wait a bit more for Kafka to be fully ready
+sleep 5
 
 # Now run the producer
 echo "🚀 Starting producer..."

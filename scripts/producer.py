@@ -66,7 +66,7 @@ def read_and_send_json(file_path, producer, topic):
                             logger.info(f"Sent {line_count} records to Kafka")
                         
                         # Small delay to simulate real-time streaming
-                        time.sleep(0.01)
+                        time.sleep(0.015)
                         
                     except json.JSONDecodeError as e:
                         logger.error(f"Invalid JSON on line {line_count + 1}: {e}")
