@@ -144,14 +144,15 @@ This wipes Kafka state & container volumes so you get a fresh run.
 
 ```
 ├─ docker-compose.yml
-├─ producer.py
-├─ fraud_detection_spark.py
-├─ consumer.py
-├─ wait-for-kafka-and-spark.sh
-├─ models-creator.py
 ├─ requirements.txt
 ├─ data/
 │  └─ creditcard_json.json
+└─ scripts/
+│  ├─ producer.py
+│  ├─ fraud_detection_spark.py
+│  ├─ consumer.py
+│  ├─ wait-for-kafka-and-spark.sh
+│  └─ models-creator.py
 └─ models/
    ├─ *.joblib
    ├─ feature_info.json
