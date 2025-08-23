@@ -8,13 +8,10 @@
 </p>
 
 <h1 align="center">🛡️ Real‑Time Fraud Detection (Kafka ➜ Spark ➜ Alerts)</h1>
-<p align="center">
-  <i>Default out‑of‑the‑box setup: just run <code>docker compose up -d --build</code>.</i>
-</p>
 
 ---
 
-## 📦 What you get (defaults)
+## 📦 What you get 
 > The compose file brings up everything you need. No extra config. No surprises.
 
 - **Services**: `zookeeper`, `kafka`, `producer`, `realtime-fraud-detector`, `fraud-consumer`
