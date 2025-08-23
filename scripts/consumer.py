@@ -50,13 +50,49 @@ def create_consumer(bootstrap_servers, topic, group_id):
         fetch_min_bytes=4096
     )
 
+def safe_get_value(record, key_options, default="N/A"):
+    """
+    Safely get value from record, trying multiple key options
+    """
+    for key in key_options if isinstance(key_options, list) else [key_options]:
+        if key in record:
+            return record[key]
+    return default
+
+def parse_fraud_prediction(value):
+    """Parse fraud prediction from various formats"""
+    if value is True or value == 1 or value == "1":
+        return "FRAUD"
+    elif value is False or value == 0 or value == "0":
+        return "NOT FRAUD"
+    return str(value)
+
 def update_stats(actual_class, predicted_class, alerted):
     """Update confusion matrix and alert statistics"""
     global CONFUSION_MATRIX, ALERT_STATS, TOTAL_TRANSACTIONS, FRAUD_ALERTS_SENT
     
-    # Convert to integers for consistency
-    actual = int(actual_class) if actual_class not in ['?', 'N/A', 'unknown', None] else None
-    predicted = int(predicted_class) if predicted_class not in ['?', 'N/A', 'unknown', None] else None
+    # Convert to integers for consistency, handle multiple field names
+    actual = None
+    predicted = None
+    
+    # Parse actual class
+    if actual_class not in ['?', 'N/A', 'unknown', None]:
+        try:
+            actual = int(actual_class)
+        except (ValueError, TypeError):
+            actual = None
+    
+    # Parse predicted class
+    if predicted_class not in ['?', 'N/A', 'unknown', None]:
+        try:
+            if predicted_class in ['FRAUD', 'fraud', True, 1, '1']:
+                predicted = 1
+            elif predicted_class in ['NOT FRAUD', 'not fraud', False, 0, '0']:
+                predicted = 0
+            else:
+                predicted = int(predicted_class)
+        except (ValueError, TypeError):
+            predicted = None
     
     if actual is not None and predicted is not None:
         CONFUSION_MATRIX[(actual, predicted)] += 1
@@ -74,7 +110,7 @@ def print_summary_table():
     print("="*60)
     
     if TOTAL_TRANSACTIONS == 0:
-        print("⌛ No transactions processed with valid labels yet")
+        print("⏛️ No transactions processed with valid labels yet")
         print("="*60)
         return
     
@@ -85,13 +121,13 @@ def print_summary_table():
     fn = CONFUSION_MATRIX.get((1, 0), 0)  # Fraud marked as not fraud
     
     # Create summary table
-    print("┌─────────────────────┬──────────────┬────────────────┐")
+    print("┌─────────────────────┬──────────────┬───────────────┐")
     print("│                     │ Marked Fraud │ Marked Not     │")
     print("│                     │              │ Fraud          │")
-    print("├─────────────────────┼──────────────┼────────────────┤")
+    print("├─────────────────────┼──────────────┼───────────────┤")
     print(f"│ Actual Fraud        │    {tp:6d}    │     {fn:6d}     │")
     print(f"│ Actual Not Fraud    │    {fp:6d}    │     {tn:6d}     │")
-    print("└─────────────────────┴──────────────┴────────────────┘")
+    print("└─────────────────────┴──────────────┴───────────────┘")
     
     # Calculate metrics
     total_actual_fraud = tp + fn
@@ -136,7 +172,7 @@ def print_final_statistics():
     print(f"🚨 Total Fraud Alerts Sent: {FRAUD_ALERTS_SENT}")
     
     if TOTAL_TRANSACTIONS == 0:
-        print("⌛ No transactions processed with valid labels!")
+        print("⏛️ No transactions processed with valid labels!")
         return
     
     # Confusion Matrix
@@ -185,7 +221,7 @@ def print_final_statistics():
     alert_precision = (tp / FRAUD_ALERTS_SENT) if FRAUD_ALERTS_SENT > 0 else 0.0
     print(f"\n🚨 ALERT EFFECTIVENESS")
     print("="*50)
-    print(f"🔔 Total Alerts Sent: {FRAUD_ALERTS_SENT}")
+    print(f"📢 Total Alerts Sent: {FRAUD_ALERTS_SENT}")
     print(f"✅ Correct Alerts (True Frauds): {tp}")
     print(f"❌ False Alerts (False Positives): {fp}")
     print(f"🎯 Alert Precision: {alert_precision:.4f} ({alert_precision*100:.2f}%)")
@@ -228,21 +264,59 @@ def main():
             try:
                 MESSAGE_COUNT += 1
                 record = message.value
-                amount = record.get("Amount", "N/A")
-                cls = record.get("Class", "?")
-                is_fraud = record.get("is_fraud", "N/A")
-                timestamp = record.get("timestamp", "N/A")
-
-                # Only show the fraud alert details (no change here)
+                
+                # FIXED: Handle multiple possible field names from the producer
+                # Try multiple field name variations for amount
+                amount = safe_get_value(record, ['Amount', 'amount'], "N/A")
+                
+                # Try multiple field name variations for class  
+                cls = safe_get_value(record, ['Class', 'actual_class', 'class'], "?")
+                
+                # Try multiple field name variations for fraud prediction
+                is_fraud_raw = safe_get_value(record, ['is_fraud', 'predicted_fraud', 'prediction'], "N/A")
+                is_fraud = parse_fraud_prediction(is_fraud_raw)
+                
+                # Get timestamp
+                timestamp = safe_get_value(record, ['timestamp'], "N/A")
+                
+                # Get additional useful information if available
+                time_val = safe_get_value(record, ['Time', 'time_value', 'time'], "N/A")
+                transaction_id = safe_get_value(record, ['transaction_id', 'id'], "N/A")
+                
+                # Extract metadata if available
+                metadata = record.get('metadata', {})
+                avg_prob = metadata.get('average_probability', 'N/A')
+                threshold = metadata.get('threshold', 'N/A')
+                time_bucket = metadata.get('time_bucket', 'N/A')
+                
+                # Enhanced fraud alert display
                 print(f"🚨 FRAUD ALERT:")
+                print(f"   🆔 Transaction ID: {transaction_id}")
                 print(f"   💰 Amount: ${amount}")
-                print(f"   🏷️  Class: {cls}")
-                print(f"   ⚖️ Fraud Prediction: {is_fraud}")
-                print(f"   ⏰ Timestamp: {timestamp}")
+                print(f"   🏷️  Actual Class: {cls}")
+                print(f"   ⚖️  Fraud Prediction: {is_fraud}")
+                print(f"   ⏰ Alert Timestamp: {timestamp}")
+                print(f"   🕒 Transaction Time: {time_val}")
+                
+                # Show model details if available
+                if avg_prob != 'N/A':
+                    print(f"   📊 Model Probability: {avg_prob}")
+                if threshold != 'N/A':
+                    print(f"   🎯 Detection Threshold: {threshold}")
+                if time_bucket != 'N/A':
+                    print(f"   🕰️  Time Bucket: {time_bucket}")
+                
+                # Show individual model probabilities if available
+                if 'probabilities' in metadata:
+                    probs = metadata['probabilities']
+                    print(f"   🤖 Model Probabilities:")
+                    for model_name, prob in probs.items():
+                        print(f"      {model_name}: {prob:.3f}")
+                
                 print("-" * 50)
 
                 # Update statistics (this is an alert, so alerted=True)
-                update_stats(cls, is_fraud, alerted=True)
+                update_stats(cls, is_fraud_raw, alerted=True)
 
                 # Print summary table every 10k messages
                 if MESSAGE_COUNT % 10000 == 0:
@@ -250,6 +324,7 @@ def main():
 
             except Exception as e:
                 logger.error(f"Error processing message: {e}")
+                logger.error(f"Raw message: {message.value}")
                 continue
 
     except KeyboardInterrupt:
