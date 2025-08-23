@@ -1,3 +1,4 @@
+# Fixed Dockerfile.consumer with compatible versions
 FROM python:3.10-slim
 ENV PYTHONUNBUFFERED=1
 
@@ -7,12 +8,19 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install EXACT same versions as used during model training (1.6.1)
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir \
+    numpy==2.2.6 \
+    pandas==2.3.2 \
+    scikit-learn==1.7.1 \
+    kafka-python==2.0.2 \
+    joblib==1.5.1 \
+    requests==2.31.0 \
+    elasticsearch==8.8.0
 
 COPY scripts/ ./scripts/
 
 RUN dos2unix ./scripts/wait-for-kafka-and-spark.sh \
  && chmod +x ./scripts/wait-for-kafka-and-spark.sh \
  && chmod +x ./scripts/*.py
-

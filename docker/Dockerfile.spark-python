@@ -1,0 +1,12 @@
+FROM bitnami/spark:3.4
+
+WORKDIR /app
+# Add Python deps required by your UDF + joblib model
+RUN install_packages python3-pip \
+ && pip3 install --no-cache-dir -U pip \
+ && pip3 install --no-cache-dir numpy==1.24.3 joblib scikit-learn==1.7.1
+
+# Make sure PySpark uses python3 everywhere
+ENV PYSPARK_PYTHON=/usr/bin/python3
+ENV PYSPARK_DRIVER_PYTHON=/usr/bin/python3
+
